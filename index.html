@@ -1,4 +1,4 @@
-<!doctype html>
+!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -63,7 +63,7 @@
           <caption>Latest matching results for this patient</caption>
           <thead><tr><th scope="col">Result</th><th scope="col">Value</th><th scope="col">Date</th></tr></thead>
           <tbody>
-            <tr><th scope="row">Height</th><td><span id="height-value">Loading…</span> <label for="height-unit">Display in</label> <select id="height-unit"><option value="cm">centimeters</option><option value="ft-in">feet and inches</option></select></td><td id="height-date">—</td></tr>
+            <tr><th scope="row">Height</th><td id="height-value">Loading…</td><td id="height-date">—</td></tr>
             <tr><th scope="row">Blood pressure</th><td id="bp-value">Loading…</td><td id="bp-date">—</td></tr>
             <tr><th scope="row">HDL</th><td id="hdl-value">Loading…</td><td id="hdl-date">—</td></tr>
             <tr><th scope="row">LDL</th><td id="ldl-value">Loading…</td><td id="ldl-date">—</td></tr>
@@ -93,18 +93,6 @@
     }
 
     // Reads Patient.birthDate to calculate completed years; the student should see the patient's age or “Not recorded.”
-    // Formats a FHIR birth date as month/day/year for display.
-    function formatBirthDate(birthDate) {
-      if (!birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return "Not recorded";
-      var parts = birthDate.split("-");
-      var year = Number(parts[0]);
-      var month = Number(parts[1]);
-      var day = Number(parts[2]);
-      var date = new Date(Date.UTC(year, month - 1, day));
-      if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return "Not recorded";
-      return String(month) + "/" + String(day) + "/" + parts[0];
-    }
-
     function formatAge(birthDate) {
       if (!birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return "Not recorded";
       var birth = new Date(birthDate + "T00:00:00Z");
@@ -133,34 +121,6 @@
     }
 
     // Reads a selected Observation's valueQuantity and date; the student should see the result and its date when available.
-    function renderHeight(observation) {
-      var quantity = observation && observation.valueQuantity;
-      var valueElement = document.getElementById("height-value");
-      if (!quantity || quantity.value === undefined || quantity.value === null) {
-        valueElement.textContent = "Not recorded";
-        return;
-      }
-      var unit = quantity.code || quantity.unit || "";
-      var centimeters;
-      if (unit === "cm") centimeters = Number(quantity.value);
-      else if (unit === "m") centimeters = Number(quantity.value) * 100;
-      else if (unit === "in" || unit === "[in_i]") centimeters = Number(quantity.value) * 2.54;
-      else if (unit === "ft" || unit === "[ft_i]") centimeters = Number(quantity.value) * 30.48;
-      if (!Number.isFinite(centimeters) || centimeters <= 0) {
-        valueElement.textContent = quantityText(quantity);
-        return;
-      }
-      if (document.getElementById("height-unit").value === "ft-in") {
-        var totalInches = centimeters / 2.54;
-        var feet = Math.floor(totalInches / 12);
-        var inches = Math.round((totalInches - feet * 12) * 10) / 10;
-        if (inches >= 12) { feet += 1; inches = 0; }
-        valueElement.textContent = feet + " ft " + inches + " in";
-      } else {
-        valueElement.textContent = (Math.round(centimeters * 10) / 10) + " cm";
-      }
-    }
-
     function renderResult(valueId, dateId, observation) {
       document.getElementById(valueId).textContent = observation ? quantityText(observation.valueQuantity) : "Not recorded";
       var rawDate = observation ? observationDate(observation) : "";
@@ -250,7 +210,7 @@
         var name = formatName(patient);
         document.getElementById("patient-name").textContent = name;
         document.getElementById("patient-gender").textContent = patient.gender || "Not recorded";
-        document.getElementById("patient-birth-date").textContent = formatBirthDate(patient.birthDate);
+        document.getElementById("patient-birth-date").textContent = patient.birthDate || "Not recorded";
         document.getElementById("patient-age").textContent = formatAge(patient.birthDate);
         document.getElementById("page-title").textContent = name === "Not recorded" ? "Patient record" : name + "'s record";
         return readObservations(client, client.patient.id).then(function (observations) {
@@ -261,13 +221,7 @@
                 return partCodes.indexOf(codes.systolic) !== -1 || partCodes.indexOf(codes.diastolic) !== -1;
               }));
           });
-          var heightObservation = latestObservation(matching, codes.height);
-          window.currentHeightObservation = heightObservation;
-          renderHeight(heightObservation);
-          var rawHeightDate = heightObservation ? observationDate(heightObservation) : "";
-          var heightDateCell = document.getElementById("height-date");
-          if (!rawHeightDate) heightDateCell.textContent = "—";
-          else { var parsedHeightDate = new Date(rawHeightDate); heightDateCell.textContent = Number.isNaN(parsedHeightDate.getTime()) ? rawHeightDate : parsedHeightDate.toLocaleDateString(); }
+          renderResult("height-value", "height-date", latestObservation(matching, codes.height));
           renderBloodPressure(matching);
           renderResult("hdl-value", "hdl-date", latestObservation(matching, codes.hdl));
           renderResult("ldl-value", "ldl-date", latestObservation(matching, codes.ldl));
@@ -277,7 +231,7 @@
           status.textContent = "Your identity is available, but results could not be loaded.";
           error.textContent = "We couldn't load your recent results. Please try again later.";
           error.hidden = false;
-          window.currentHeightObservation = null;\n          renderHeight(null);
+          renderResult("height-value", "height-date", null);
           renderBloodPressure([]);
           renderResult("hdl-value", "hdl-date", null);
           renderResult("ldl-value", "ldl-date", null);
@@ -292,18 +246,20 @@
       });
     }
 
-    // Completes the SMART redirect and restores a saved session; the student should see a loading message before the patient record or signed-out links.
+    // Completes the SMART redirect and reads any OAuth error; the student should see the record or a sign-in message with useful details.
     function startRecord() {
       var params = new URLSearchParams(location.search);
       var cameBackFromAuth = params.has("code") || params.has("error") || params.has("state");
       document.getElementById("signed-out").hidden = true;
       document.getElementById("status").hidden = false;
-      FHIR.oauth2.ready().then(loadRecord).catch(function () {
+      FHIR.oauth2.ready().then(loadRecord).catch(function (cause) {
         document.getElementById("status").hidden = true;
         document.getElementById("signed-out").hidden = false;
         if (cameBackFromAuth) {
           var error = document.getElementById("error");
-          error.textContent = "We couldn't complete sign-in. Please start again.";
+          var reason = cause && (cause.message || cause.error_description || cause.error);
+          error.textContent = "We couldn't complete sign-in. Please start again."
+            + (reason ? " Details: " + String(reason) : "");
           error.hidden = false;
         }
       });
@@ -315,7 +271,7 @@
       location.href = "./";
     }
 
-    document.getElementById("height-unit").addEventListener("change", function () { renderHeight(window.currentHeightObservation || null); });\n    document.getElementById("sign-out").addEventListener("click", signOut);
+    document.getElementById("sign-out").addEventListener("click", signOut);
     startRecord();
   </script>
 </body>
