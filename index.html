@@ -93,6 +93,18 @@
     }
 
     // Reads Patient.birthDate to calculate completed years; the student should see the patient's age or “Not recorded.”
+    // Formats a FHIR birth date as month/day/year for display.
+    function formatBirthDate(birthDate) {
+      if (!birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return "Not recorded";
+      var parts = birthDate.split("-");
+      var year = Number(parts[0]);
+      var month = Number(parts[1]);
+      var day = Number(parts[2]);
+      var date = new Date(Date.UTC(year, month - 1, day));
+      if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) return "Not recorded";
+      return String(month) + "/" + String(day) + "/" + parts[0];
+    }
+
     function formatAge(birthDate) {
       if (!birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return "Not recorded";
       var birth = new Date(birthDate + "T00:00:00Z");
@@ -210,7 +222,7 @@
         var name = formatName(patient);
         document.getElementById("patient-name").textContent = name;
         document.getElementById("patient-gender").textContent = patient.gender || "Not recorded";
-        document.getElementById("patient-birth-date").textContent = patient.birthDate || "Not recorded";
+        document.getElementById("patient-birth-date").textContent = formatBirthDate(patient.birthDate);
         document.getElementById("patient-age").textContent = formatAge(patient.birthDate);
         document.getElementById("page-title").textContent = name === "Not recorded" ? "Patient record" : name + "'s record";
         return readObservations(client, client.patient.id).then(function (observations) {
