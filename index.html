@@ -118,7 +118,11 @@
     function renderHeight() {
       var q = selectedHeight && selectedHeight.valueQuantity;
       document.getElementById("height-value").textContent = heightText(q, document.getElementById("height-units").value);
-      var raw = selectedHeight ? observationDate(selectedHeight) : "";\n      var cell = document.getElementById("height-date");\n      if (!raw) { cell.textContent = "—"; return; }\n      var date = new Date(raw);\n      cell.textContent = Number.isNaN(date.getTime()) ? raw : date.toLocaleDateString();
+      var raw = selectedHeight ? observationDate(selectedHeight) : "";
+      var cell = document.getElementById("height-date");
+      if (!raw) { cell.textContent = "—"; return; }
+      var date = new Date(raw);
+      cell.textContent = Number.isNaN(date.getTime()) ? raw : date.toLocaleDateString();
     }
     // Reads Observation.effectiveDateTime or Observation.issued; the student should see the date associated with a result when present.
     function observationDate(observation) {
@@ -238,7 +242,8 @@
                 return partCodes.indexOf(codes.systolic) !== -1 || partCodes.indexOf(codes.diastolic) !== -1;
               }));
           });
-          selectedHeight = latestObservation(matching, codes.height);\n          renderHeight();
+          selectedHeight = latestObservation(matching, codes.height);
+          renderHeight();
           renderBloodPressure(matching);
           renderResult("hdl-value", "hdl-date", latestObservation(matching, codes.hdl));
           renderResult("ldl-value", "ldl-date", latestObservation(matching, codes.ldl));
@@ -248,7 +253,8 @@
           status.textContent = "Your identity is available, but results could not be loaded.";
           error.textContent = "We couldn't load your recent results. Please try again later.";
           error.hidden = false;
-          selectedHeight = null;\n          renderHeight();
+          selectedHeight = null;
+          renderHeight();
           renderBloodPressure([]);
           renderResult("hdl-value", "hdl-date", null);
           renderResult("ldl-value", "ldl-date", null);
@@ -288,7 +294,8 @@
       location.href = "./";
     }
 
-    document.getElementById("height-units").addEventListener("change", renderHeight);\n    document.getElementById("sign-out").addEventListener("click", signOut);
+    document.getElementById("height-units").addEventListener("change", renderHeight);
+    document.getElementById("sign-out").addEventListener("click", signOut);
     startRecord();
   </script>
 </body>
