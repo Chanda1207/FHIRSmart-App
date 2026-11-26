@@ -20,7 +20,7 @@
     dd { margin: .15rem 0 0; overflow-wrap: anywhere; }
     .result-list { margin: 0; padding: 0; list-style: none; }
     .result-list li { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr); gap: .35rem 1rem; padding: .9rem 0; border-top: 1px solid #d8e0e6; }
-    .result-list li:first-child { border-top: 0; padding-top: 0; }
+    .result-list > div:first-child { border-top: 0; padding-top: 0; }
     .result-label { font-weight: 650; }
     .result-value { margin: 0; }
     .result-date { grid-column: 2; margin: -.25rem 0 0; color: #425466; font-size: .94rem; }
@@ -31,7 +31,7 @@
     @media (max-width: 28rem) {
       main { width: min(100% - 1.25rem, 48rem); padding-top: 1.25rem; }
       .panel { padding: 1rem; }
-      .result-list li { grid-template-columns: 1fr; gap: .15rem; }
+      .result-list > div { grid-template-columns: 1fr; gap: .15rem; }
       .result-date { grid-column: 1; margin: 0; }
     }
   </style>
@@ -115,11 +115,11 @@
     }
 
     // Shows a plain-language sign-in error while leaving any patient identity already loaded visible.
-    // It reads only the error message; students should see text rather than a blank page.
+    // It shows a plain-language message; students should see text rather than a blank page.
     function showError(error) {
       var node = document.getElementById("error");
       node.hidden = false;
-      node.textContent = error && error.message ? "We couldn’t load your patient record. Please try signing in again." : "We couldn’t load your patient record. Please try signing in again.";
+      node.textContent = "We couldn’t load your patient record. Please try signing in again.";
     }
 
     // Reads the authorized client's patient id and requests only the six matching Observation codes.
