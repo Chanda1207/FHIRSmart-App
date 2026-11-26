@@ -136,39 +136,50 @@
         .sort(function (a, b) { return (Date.parse(observationDate(b)) || 0) - (Date.parse(observationDate(a)) || 0); })[0] || null;
     }
 
-    // Reads blood-pressure panel components or separate systolic and diastolic Observation quantities; the student should see systolic/diastolic with the available unit.
+    // Reads Observation.valueQuantity and blood-pressure component values by LOINC code; the student should see the newest available systolic and diastolic values.
+    function latestObservationValue(observations, code) {
+      var candidates = [];
+      observations.forEach(function (observation) {
+        if (observationCodes(observation).indexOf(code) !== -1) {
+          candidates.push({ observation: observation, quantity: observation.valueQuantity });
+        }
+        var components = Array.isArray(observation.component) ? observation.component : [];
+        components.forEach(function (component) {
+          var componentCodes = component.code && Array.isArray(component.code.coding)
+            ? component.code.coding.map(function (coding) { return coding.code; })
+            : [];
+          if (componentCodes.indexOf(code) !== -1) {
+            candidates.push({ observation: observation, quantity: component.valueQuantity });
+          }
+        });
+      });
+      candidates.sort(function (a, b) {
+        return (Date.parse(observationDate(b.observation)) || 0) - (Date.parse(observationDate(a.observation)) || 0);
+      });
+      return candidates[0] || null;
+    }
+
+    // Reads each blood-pressure value's quantity and source date; the student should see the newest systolic/diastolic pair with its unit and date.
     function renderBloodPressure(observations) {
-      var panels = observations.filter(function (item) { return observationCodes(item).indexOf(codes.panel) !== -1; })
-        .sort(function (a, b) { return (Date.parse(observationDate(b)) || 0) - (Date.parse(observationDate(a)) || 0); });
-      var panel = panels.find(function (item) {
-        return Array.isArray(item.component) && item.component.some(function (part) {
-          var partCodes = part.code && Array.isArray(part.code.coding) ? part.code.coding.map(function (coding) { return coding.code; }) : [];
-          return partCodes.indexOf(codes.systolic) !== -1 || partCodes.indexOf(codes.diastolic) !== -1;
-        });
-      }) || null;
-      function componentQuantity(source, code) {
-        if (!source || !Array.isArray(source.component)) return null;
-        var component = source.component.find(function (part) {
-          var partCodes = part.code && Array.isArray(part.code.coding) ? part.code.coding.map(function (coding) { return coding.code; }) : [];
-          return partCodes.indexOf(code) !== -1;
-        });
-        return component ? component.valueQuantity : null;
-      }
-      var systolicObservation = latestObservation(observations, codes.systolic);
-      var diastolicObservation = latestObservation(observations, codes.diastolic);
-      var systolic = componentQuantity(panel, codes.systolic) || (systolicObservation && systolicObservation.valueQuantity);
-      var diastolic = componentQuantity(panel, codes.diastolic) || (diastolicObservation && diastolicObservation.valueQuantity);
-      var left = systolic ? String(systolic.value === undefined || systolic.value === null ? "Not recorded" : systolic.value) : "Not recorded";
-      var right = diastolic ? String(diastolic.value === undefined || diastolic.value === null ? "Not recorded" : diastolic.value) : "Not recorded";
-      var systolicUnit = systolic && systolic.unit;
-      var diastolicUnit = diastolic && diastolic.unit;
+      var systolicResult = latestObservationValue(observations, codes.systolic);
+      var diastolicResult = latestObservationValue(observations, codes.diastolic);
+      var systolic = systolicResult && systolicResult.quantity;
+      var diastolic = diastolicResult && diastolicResult.quantity;
+      var systolicHasValue = systolic && systolic.value !== undefined && systolic.value !== null;
+      var diastolicHasValue = diastolic && diastolic.value !== undefined && diastolic.value !== null;
+      var left = systolicHasValue ? String(systolic.value) : "Not recorded";
+      var right = diastolicHasValue ? String(diastolic.value) : "Not recorded";
+      var systolicUnit = systolicHasValue && systolic.unit;
+      var diastolicUnit = diastolicHasValue && diastolic.unit;
       var value = systolicUnit && systolicUnit === diastolicUnit
         ? left + "/" + right + " " + systolicUnit
         : left + (systolicUnit ? " " + systolicUnit : "") + " / " + right + (diastolicUnit ? " " + diastolicUnit : "");
       document.getElementById("bp-value").textContent = value;
-      var dateSource = panel || (systolicObservation && diastolicObservation
-        ? (Date.parse(observationDate(systolicObservation)) >= Date.parse(observationDate(diastolicObservation)) ? systolicObservation : diastolicObservation)
-        : systolicObservation || diastolicObservation);
+      var dateSource = systolicResult && diastolicResult
+        ? (Date.parse(observationDate(systolicResult.observation)) >= Date.parse(observationDate(diastolicResult.observation))
+          ? systolicResult.observation
+          : diastolicResult.observation)
+        : (systolicResult || diastolicResult) && (systolicResult || diastolicResult).observation;
       var rawDate = dateSource ? observationDate(dateSource) : "";
       var dateCell = document.getElementById("bp-date");
       if (!rawDate) { dateCell.textContent = "—"; return; }
@@ -180,7 +191,7 @@
     function readObservations(client, patientId) {
       var requestedCodes = Object.keys(codes).map(function (key) { return codes[key]; }).join(",");
       var query = "Observation?patient=" + encodeURIComponent(patientId)
-        + "&code=" + encodeURIComponent(requestedCodes) + "&_count=100";
+        + "&code=" + encodeURIComponent(requestedCodes) + "&_sort=-date&_count=100";
       return client.request(query).then(function (bundle) {
         return (bundle && Array.isArray(bundle.entry) ? bundle.entry : [])
           .map(function (entry) { return entry.resource; })
