@@ -63,7 +63,7 @@
           <caption>Latest matching results for this patient</caption>
           <thead><tr><th scope="col">Result</th><th scope="col">Value</th><th scope="col">Date</th></tr></thead>
           <tbody>
-            <tr><th scope="row">Height</th><td id="height-value">Loading…</td><td id="height-date">—</td></tr>
+            <tr><th scope="row">Height</th><td><span id="height-value">Loading…</span> <label for="height-unit">Display in</label> <select id="height-unit"><option value="cm">centimeters</option><option value="ft-in">feet and inches</option></select></td><td id="height-date">—</td></tr>
             <tr><th scope="row">Blood pressure</th><td id="bp-value">Loading…</td><td id="bp-date">—</td></tr>
             <tr><th scope="row">HDL</th><td id="hdl-value">Loading…</td><td id="hdl-date">—</td></tr>
             <tr><th scope="row">LDL</th><td id="ldl-value">Loading…</td><td id="ldl-date">—</td></tr>
@@ -133,6 +133,34 @@
     }
 
     // Reads a selected Observation's valueQuantity and date; the student should see the result and its date when available.
+    function renderHeight(observation) {
+      var quantity = observation && observation.valueQuantity;
+      var valueElement = document.getElementById("height-value");
+      if (!quantity || quantity.value === undefined || quantity.value === null) {
+        valueElement.textContent = "Not recorded";
+        return;
+      }
+      var unit = quantity.code || quantity.unit || "";
+      var centimeters;
+      if (unit === "cm") centimeters = Number(quantity.value);
+      else if (unit === "m") centimeters = Number(quantity.value) * 100;
+      else if (unit === "in" || unit === "[in_i]") centimeters = Number(quantity.value) * 2.54;
+      else if (unit === "ft" || unit === "[ft_i]") centimeters = Number(quantity.value) * 30.48;
+      if (!Number.isFinite(centimeters) || centimeters <= 0) {
+        valueElement.textContent = quantityText(quantity);
+        return;
+      }
+      if (document.getElementById("height-unit").value === "ft-in") {
+        var totalInches = centimeters / 2.54;
+        var feet = Math.floor(totalInches / 12);
+        var inches = Math.round((totalInches - feet * 12) * 10) / 10;
+        if (inches >= 12) { feet += 1; inches = 0; }
+        valueElement.textContent = feet + " ft " + inches + " in";
+      } else {
+        valueElement.textContent = (Math.round(centimeters * 10) / 10) + " cm";
+      }
+    }
+
     function renderResult(valueId, dateId, observation) {
       document.getElementById(valueId).textContent = observation ? quantityText(observation.valueQuantity) : "Not recorded";
       var rawDate = observation ? observationDate(observation) : "";
@@ -233,7 +261,13 @@
                 return partCodes.indexOf(codes.systolic) !== -1 || partCodes.indexOf(codes.diastolic) !== -1;
               }));
           });
-          renderResult("height-value", "height-date", latestObservation(matching, codes.height));
+          var heightObservation = latestObservation(matching, codes.height);
+          window.currentHeightObservation = heightObservation;
+          renderHeight(heightObservation);
+          var rawHeightDate = heightObservation ? observationDate(heightObservation) : "";
+          var heightDateCell = document.getElementById("height-date");
+          if (!rawHeightDate) heightDateCell.textContent = "—";
+          else { var parsedHeightDate = new Date(rawHeightDate); heightDateCell.textContent = Number.isNaN(parsedHeightDate.getTime()) ? rawHeightDate : parsedHeightDate.toLocaleDateString(); }
           renderBloodPressure(matching);
           renderResult("hdl-value", "hdl-date", latestObservation(matching, codes.hdl));
           renderResult("ldl-value", "ldl-date", latestObservation(matching, codes.ldl));
@@ -243,7 +277,7 @@
           status.textContent = "Your identity is available, but results could not be loaded.";
           error.textContent = "We couldn't load your recent results. Please try again later.";
           error.hidden = false;
-          renderResult("height-value", "height-date", null);
+          window.currentHeightObservation = null;\n          renderHeight(null);
           renderBloodPressure([]);
           renderResult("hdl-value", "hdl-date", null);
           renderResult("ldl-value", "ldl-date", null);
@@ -281,7 +315,7 @@
       location.href = "./";
     }
 
-    document.getElementById("sign-out").addEventListener("click", signOut);
+    document.getElementById("height-unit").addEventListener("change", function () { renderHeight(window.currentHeightObservation || null); });\n    document.getElementById("sign-out").addEventListener("click", signOut);
     startRecord();
   </script>
 </body>
