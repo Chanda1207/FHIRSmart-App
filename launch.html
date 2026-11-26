@@ -1,49 +1,220 @@
-<!doctype html>
+!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sign in | SMART Patient App</title>
-  <script src="https://cdn.jsdelivr.net/npm/fhirclient@3.0.1/bundle/fhir-client.js"></script>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Patient record</title>
+	<script src="https://cdn.jsdelivr.net/npm/fhirclient@3.0.1/bundle/fhir-client.js"></script>
+	<style>
+		:root { color-scheme: light; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #17212b; background: #f4f6f8; }
+		body { margin: 0; font-size: 1rem; line-height: 1.55; }
+		main { box-sizing: border-box; max-width: 760px; margin: 0 auto; padding: 1.25rem; }
+		h1, h2 { line-height: 1.25; }
+		h1 { margin-top: 0; }
+		section, .status-card { background: #fff; border: 1px solid #c8d0d8; border-radius: .5rem; padding: 1rem; margin: 1rem 0; }
+		dl { display: grid; grid-template-columns: minmax(7rem, 1fr) 2fr; gap: .5rem 1rem; margin: 0; }
+		dt { font-weight: 650; }
+		dd { margin: 0; overflow-wrap: anywhere; }
+		table { width: 100%; border-collapse: collapse; }
+		th, td { padding: .8rem .5rem; text-align: left; vertical-align: top; border-bottom: 1px solid #d5dbe1; }
+		th { font-weight: 650; }
+		caption { text-align: left; font-weight: 650; padding-bottom: .5rem; }
+		a, button { color: #064f85; }
+		a:focus-visible, button:focus-visible { outline: 3px solid #123f67; outline-offset: 3px; }
+		button { font: inherit; background: #fff; border: 1px solid #064f85; border-radius: .3rem; padding: .45rem .8rem; cursor: pointer; }
+		.muted { color: #384653; }
+		.error { border-left: .3rem solid #8a1c1c; padding-left: .75rem; }
+		[hidden] { display: none !important; }
+		@media (max-width: 520px) {
+			main { padding: .75rem; }
+			dl { grid-template-columns: 1fr; gap: .1rem; }
+			dd { margin-bottom: .65rem; }
+			th, td { padding: .65rem .3rem; }
+		}
+	</style>
 </head>
 <body>
-  <main>
-    <h1>Starting patient sign-in…</h1>
-    <p>You are leaving this page for the SMART sandbox. Sign in there as the patient, then the sandbox sends you back here.</p>
-    <p id="error"></p>
-  </main>
-  <script>
-    // Patient standalone against the SMART Health IT R4 sandbox.
-    // The sandbox reads the "/sim/..." segment and shows a patient login
-    // because the launch type is patient-standalone (the 3 below).
-    // A different iss on the query string wins, so the SMART Launcher can
-    // still start this same page.
-    var launchOptions = [
-      3, "", "", "AUTO",
-      0, 0, 0,
-      "", "", "", "", "", "", "",
-      0, 1, ""
-    ];
+	<main>
+		<h1 id="page-title">Patient record</h1>
+		<p id="status" class="status-card" role="status" aria-live="polite">Loading your record…</p>
+		<p id="error" class="error" role="alert" hidden></p>
 
-    var sandboxIss = "https://launch.smarthealthit.org/v/r4/sim/"
-      + btoa(JSON.stringify(launchOptions)).replace(/=+$/g, "").replace(/\+/g, "-").replace(/\//g, "_")
-      + "/fhir";
+		<section aria-labelledby="identity-heading">
+			<h2 id="identity-heading">Patient identity</h2>
+			<dl>
+				<dt>Name</dt><dd id="patient-name">Loading…</dd>
+				<dt>Gender</dt><dd id="patient-gender">Loading…</dd>
+				<dt>Birth date</dt><dd id="patient-birth-date">Loading…</dd>
+				<dt>Age</dt><dd id="patient-age">Loading…</dd>
+			</dl>
+		</section>
 
-    // authorize() redirects the browser. Code after it does not run
-    // unless the sandbox cannot be reached.
-    FHIR.oauth2.authorize({
-      // Public client. The sandbox does not require a registered secret.
-      clientId: "my_web_app",
-      // launch/patient asks the sandbox to pick the patient during sign-in.
-      scope: "launch/patient openid fhirUser patient/Patient.read",
-      // Must be this app's index.html. fhir-client turns the relative URL
-      // into the full GitHub Pages URL before sending it.
-      redirectUri: "index.html",
-      iss: sandboxIss
-    }).catch(function (error) {
-      document.querySelector("h1").textContent = "Could not start sign-in";
-      document.getElementById("error").textContent = error.message || String(error);
-    });
-  </script>
+		<section aria-labelledby="results-heading">
+			<h2 id="results-heading">Recent results</h2>
+			<p id="empty-state" class="muted" hidden>The sandbox patient has no matching observations.</p>
+			<table>
+				<caption>Latest matching results for this patient</caption>
+				<thead><tr><th scope="col">Result</th><th scope="col">Value</th><th scope="col">Date</th></tr></thead>
+				<tbody>
+					<tr><th scope="row">Height</th><td id="height-value">Loading…</td><td id="height-date">—</td></tr>
+					<tr><th scope="row">Blood pressure</th><td id="bp-value">Loading…</td><td id="bp-date">—</td></tr>
+					<tr><th scope="row">HDL</th><td id="hdl-value">Loading…</td><td id="hdl-date">—</td></tr>
+					<tr><th scope="row">LDL</th><td id="ldl-value">Loading…</td><td id="ldl-date">—</td></tr>
+				</tbody>
+			</table>
+		</section>
+
+		<nav aria-label="Account actions"><button id="sign-out" type="button">Sign out</button></nav>
+		<p id="signed-out-links" hidden><a href="launch.html">Sign in</a></p>
+	</main>
+
+	<script>
+		const codes = {
+			height: "8302-2", panel: "85354-9", systolic: "8480-6", diastolic: "8462-4",
+			hdl: "2085-9", ldl: "13457-7"
+		};
+
+		// Reads a patient's display name safely from the FHIR name list; the student should see a name or “Not recorded.”
+		function displayName(patient) {
+			const names = Array.isArray(patient.name) ? patient.name : [];
+			for (const name of names) {
+				if (typeof name.text === "string" && name.text.trim()) return name.text.trim();
+				const given = Array.isArray(name.given) ? name.given.filter(Boolean) : [];
+				const parts = [...given, name.family].filter(part => typeof part === "string" && part.trim());
+				if (parts.length) return parts.join(" ");
+			}
+			return "Not recorded";
+		}
+
+		// Reads birthDate to calculate completed years; the student should see the patient's age or “Not recorded.”
+		function calculateAge(birthDate) {
+			if (!birthDate || !/^\d{4}-\d{2}-\d{2}$/.test(birthDate)) return "Not recorded";
+			const birth = new Date(`${birthDate}T00:00:00Z`);
+			if (Number.isNaN(birth.getTime())) return "Not recorded";
+			const now = new Date();
+			let age = now.getUTCFullYear() - birth.getUTCFullYear();
+			if (now.getUTCMonth() < birth.getUTCMonth() || (now.getUTCMonth() === birth.getUTCMonth() && now.getUTCDate() < birth.getUTCDate())) age--;
+			return age >= 0 ? String(age) : "Not recorded";
+		}
+
+		// Reads a FHIR Observation's effectiveDateTime or issued field; the student should see its date when provided.
+		function observationDate(observation) {
+			return observation.effectiveDateTime || observation.issued || "";
+		}
+
+		// Reads Observation.code.coding codes; the student should see only requested height, blood-pressure, HDL, and LDL results.
+		function observationCodes(observation) {
+			const coding = observation.code && Array.isArray(observation.code.coding) ? observation.code.coding : [];
+			return coding.map(item => item.code).filter(Boolean);
+		}
+
+		// Reads Observation.valueQuantity value and unit; the student should see a number with its unit or “Not recorded.”
+		function quantityText(quantity) {
+			if (!quantity || quantity.value === undefined || quantity.value === null) return "Not recorded";
+			const value = String(quantity.value);
+			return quantity.unit ? `${value} ${quantity.unit}` : value;
+		}
+
+		// Reads an Observation quantity and its date field; the student should see the result and a formatted date when present.
+		function renderResult(valueId, dateId, observation) {
+			document.getElementById(valueId).textContent = observation ? quantityText(observation.valueQuantity) : "Not recorded";
+			const rawDate = observation ? observationDate(observation) : "";
+			const dateCell = document.getElementById(dateId);
+			if (!rawDate) { dateCell.textContent = "—"; return; }
+			const date = new Date(rawDate);
+			dateCell.textContent = Number.isNaN(date.getTime()) ? rawDate : date.toLocaleDateString();
+		}
+
+		// Reads each Observation's effectiveDateTime or issued value to choose the newest result; the student should see the most recent matching measurement.
+		function latestObservation(observations, code) {
+			return observations.filter(item => observationCodes(item).includes(code)).sort((a, b) => {
+				const aDate = Date.parse(observationDate(a)) || 0;
+				const bDate = Date.parse(observationDate(b)) || 0;
+				return bDate - aDate;
+			})[0] || null;
+		}
+
+		// Reads blood-pressure panel components or separate systolic/diastolic quantities; the student should see systolic/diastolic values with units.
+		function renderBloodPressure(observations) {
+			const panels = observations.filter(item => observationCodes(item).includes(codes.panel)).sort((a, b) => (Date.parse(observationDate(b)) || 0) - (Date.parse(observationDate(a)) || 0));
+			const panel = panels.find(item => Array.isArray(item.component) && item.component.some(part => part.code && Array.isArray(part.code.coding) && part.code.coding.some(coding => coding.code === codes.systolic || coding.code === codes.diastolic)));
+			const componentQuantity = (source, code) => {
+				if (!source || !Array.isArray(source.component)) return null;
+				const component = source.component.find(part => part.code && Array.isArray(part.code.coding) && part.code.coding.some(coding => coding.code === code));
+				return component ? component.valueQuantity : null;
+			};
+			const systolic = componentQuantity(panel, codes.systolic) || (latestObservation(observations, codes.systolic) || {}).valueQuantity;
+			const diastolic = componentQuantity(panel, codes.diastolic) || (latestObservation(observations, codes.diastolic) || {}).valueQuantity;
+			const left = systolic ? String(systolic.value ?? "Not recorded") : "Not recorded";
+			const right = diastolic ? String(diastolic.value ?? "Not recorded") : "Not recorded";
+			const systolicUnit = systolic && systolic.unit;
+			const diastolicUnit = diastolic && diastolic.unit;
+			let value = `${left}/${right}`;
+			if (systolicUnit && systolicUnit === diastolicUnit) value += ` ${systolicUnit}`;
+			else value = `${left}${systolicUnit ? ` ${systolicUnit}` : ""} / ${right}${diastolicUnit ? ` ${diastolicUnit}` : ""}`;
+			document.getElementById("bp-value").textContent = value;
+			const dateSource = panel || latestObservation(observations, codes.systolic) || latestObservation(observations, codes.diastolic);
+			const rawDate = dateSource ? observationDate(dateSource) : "";
+			const date = rawDate ? new Date(rawDate) : null;
+			document.getElementById("bp-date").textContent = !rawDate ? "—" : Number.isNaN(date.getTime()) ? rawDate : date.toLocaleDateString();
+		}
+
+		// Requests only Observation resources for the authorized patient's id and requested LOINC codes; the student should see recent matching rows or the no-data message.
+		async function readObservations(client, patientId) {
+			const requestedCodes = Object.values(codes).join(",");
+			const query = `Observation?patient=${encodeURIComponent(patientId)}&code=${encodeURIComponent(requestedCodes)}&_count=100`;
+			const bundle = await client.request(query);
+			return (bundle && Array.isArray(bundle.entry) ? bundle.entry : []).map(entry => entry.resource).filter(resource => resource && resource.resourceType === "Observation");
+		}
+
+		// Reads Patient identity and then requests that patient's Observations; the student should see identity, four result rows, and a loading/error message as appropriate.
+		async function loadRecord() {
+			const status = document.getElementById("status");
+			const error = document.getElementById("error");
+			try {
+				const client = await FHIR.oauth2.ready();
+				const patient = await client.patient.read();
+				document.getElementById("patient-name").textContent = displayName(patient);
+				document.getElementById("patient-gender").textContent = patient.gender || "Not recorded";
+				document.getElementById("patient-birth-date").textContent = patient.birthDate || "Not recorded";
+				document.getElementById("patient-age").textContent = calculateAge(patient.birthDate);
+				document.getElementById("page-title").textContent = `${displayName(patient)}'s record`;
+
+				try {
+					const observations = await readObservations(client, client.patient.id);
+					const relevant = observations.filter(item => observationCodes(item).some(code => Object.values(codes).includes(code)) || (Array.isArray(item.component) && item.component.some(part => part.code && Array.isArray(part.code.coding) && part.code.coding.some(coding => coding.code === codes.systolic || coding.code === codes.diastolic))));
+					renderResult("height-value", "height-date", latestObservation(relevant, codes.height));
+					renderBloodPressure(relevant);
+					renderResult("hdl-value", "hdl-date", latestObservation(relevant, codes.hdl));
+					renderResult("ldl-value", "ldl-date", latestObservation(relevant, codes.ldl));
+					document.getElementById("empty-state").hidden = relevant.length > 0;
+					status.textContent = "Your record is ready.";
+				} catch (observationError) {
+					status.textContent = "Your identity is available, but results could not be loaded.";
+					error.textContent = "We couldn't load your recent results. Please try again later.";
+					error.hidden = false;
+					renderResult("height-value", "height-date", null);
+					renderResult("hdl-value", "hdl-date", null);
+					renderResult("ldl-value", "ldl-date", null);
+					document.getElementById("bp-value").textContent = "Not recorded";
+				}
+			} catch (patientError) {
+				status.textContent = "Your record could not be loaded.";
+				error.textContent = "We couldn't load your patient identity. Please sign in again or try later.";
+				error.hidden = false;
+				document.getElementById("signed-out-links").hidden = false;
+				for (const id of ["patient-name", "patient-gender", "patient-birth-date", "patient-age"]) document.getElementById(id).textContent = "Not recorded";
+				for (const id of ["height-value", "bp-value", "hdl-value", "ldl-value"]) document.getElementById(id).textContent = "Not recorded";
+			}
+		}
+
+		// Calls the SMART on FHIR sign-out flow; the student should return to the signed-out view.
+		function signOut() {
+			FHIR.oauth2.signOut();
+		}
+
+		document.getElementById("sign-out").addEventListener("click", signOut);
+		loadRecord();
+	</script>
 </body>
 </html>
