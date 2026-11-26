@@ -63,7 +63,7 @@
           <caption>Latest matching results for this patient</caption>
           <thead><tr><th scope="col">Result</th><th scope="col">Value</th><th scope="col">Date</th></tr></thead>
           <tbody>
-            <tr><th scope="row">Height</th><td id="height-value">Loading…</td><td id="height-date">—</td></tr>
+            <tr><th scope="row">Height</th><td><span id="height-value">Loading…</span> <label for="height-units">Units</label> <select id="height-units" aria-label="Height units"><option value="cm">Centimeters</option><option value="ft-in">Feet and inches</option></select></td><td id="height-date">—</td></tr>
             <tr><th scope="row">Blood pressure</th><td id="bp-value">Loading…</td><td id="bp-date">—</td></tr>
             <tr><th scope="row">HDL</th><td id="hdl-value">Loading…</td><td id="hdl-date">—</td></tr>
             <tr><th scope="row">LDL</th><td id="ldl-value">Loading…</td><td id="ldl-date">—</td></tr>
@@ -103,6 +103,23 @@
       return age >= 0 ? String(age) + " years" : "Not recorded";
     }
 
+    function heightText(q, mode) {
+      if (!q || q.value == null || !Number.isFinite(Number(q.value))) return "Not recorded";
+      var unit = String(q.code || q.unit || "").toLowerCase();
+      var cm = Number(q.value);
+      if (unit === "m" || unit === "meter" || unit === "meters") cm *= 100;
+      else if (unit === "[in_i]" || unit === "in" || unit === "inch" || unit === "inches") cm *= 2.54;
+      else if (unit === "[ft_i]" || unit === "ft" || unit === "foot" || unit === "feet") cm *= 30.48;
+      else if (unit !== "cm" && unit !== "centimeter" && unit !== "centimeters") return String(q.value) + (q.unit ? " " + q.unit : "");
+      if (mode === "ft-in") { var inches = Math.round(cm / 2.54 * 10) / 10; var feet = Math.floor(inches / 12); inches = Math.round((inches - feet * 12) * 10) / 10; return feet + " ft " + inches + " in"; }
+      return (Math.round(cm * 10) / 10) + " cm";
+    }
+    var selectedHeight = null;
+    function renderHeight() {
+      var q = selectedHeight && selectedHeight.valueQuantity;
+      document.getElementById("height-value").textContent = heightText(q, document.getElementById("height-units").value);
+      var raw = selectedHeight ? observationDate(selectedHeight) : "";\n      var cell = document.getElementById("height-date");\n      if (!raw) { cell.textContent = "—"; return; }\n      var date = new Date(raw);\n      cell.textContent = Number.isNaN(date.getTime()) ? raw : date.toLocaleDateString();
+    }
     // Reads Observation.effectiveDateTime or Observation.issued; the student should see the date associated with a result when present.
     function observationDate(observation) {
       return observation.effectiveDateTime || observation.issued || "";
@@ -210,7 +227,7 @@
         var name = formatName(patient);
         document.getElementById("patient-name").textContent = name;
         document.getElementById("patient-gender").textContent = patient.gender || "Not recorded";
-        document.getElementById("patient-birth-date").textContent = patient.birthDate || "Not recorded";
+        document.getElementById("patient-birth-date").textContent = patient.birthDate ? patient.birthDate.slice(5,7) + "/" + patient.birthDate.slice(8,10) + "/" + patient.birthDate.slice(0,4) : "Not recorded";
         document.getElementById("patient-age").textContent = formatAge(patient.birthDate);
         document.getElementById("page-title").textContent = name === "Not recorded" ? "Patient record" : name + "'s record";
         return readObservations(client, client.patient.id).then(function (observations) {
@@ -221,7 +238,7 @@
                 return partCodes.indexOf(codes.systolic) !== -1 || partCodes.indexOf(codes.diastolic) !== -1;
               }));
           });
-          renderResult("height-value", "height-date", latestObservation(matching, codes.height));
+          selectedHeight = latestObservation(matching, codes.height);\n          renderHeight();
           renderBloodPressure(matching);
           renderResult("hdl-value", "hdl-date", latestObservation(matching, codes.hdl));
           renderResult("ldl-value", "ldl-date", latestObservation(matching, codes.ldl));
@@ -231,7 +248,7 @@
           status.textContent = "Your identity is available, but results could not be loaded.";
           error.textContent = "We couldn't load your recent results. Please try again later.";
           error.hidden = false;
-          renderResult("height-value", "height-date", null);
+          selectedHeight = null;\n          renderHeight();
           renderBloodPressure([]);
           renderResult("hdl-value", "hdl-date", null);
           renderResult("ldl-value", "ldl-date", null);
@@ -271,7 +288,7 @@
       location.href = "./";
     }
 
-    document.getElementById("sign-out").addEventListener("click", signOut);
+    document.getElementById("height-units").addEventListener("change", renderHeight);\n    document.getElementById("sign-out").addEventListener("click", signOut);
     startRecord();
   </script>
 </body>
