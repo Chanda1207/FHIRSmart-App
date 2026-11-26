@@ -216,10 +216,8 @@
       var systolicText = quantityValue(systolic);
       var diastolicText = quantityValue(diastolic);
       var unit = systolic && (systolic.unit || systolic.code) || diastolic && (diastolic.unit || diastolic.code) || "";
-      var value = systolicText && diastolicText
-        ? systolicText + "/" + diastolicText + (unit ? " " + unit : "")
-        : systolicText ? systolicText + (unit ? " " + unit : "") + " / Not recorded"
-        : diastolicText ? "Not recorded / " + diastolicText + (unit ? " " + unit : "")
+      var value = systolicText || diastolicText
+        ? (systolicText || "Not recorded") + "/" + (diastolicText || "Not recorded") + (unit ? " " + unit : "")
         : "Not recorded";
       document.getElementById("blood-pressure-value").textContent = value;
       setResultDate("blood-pressure", date);
