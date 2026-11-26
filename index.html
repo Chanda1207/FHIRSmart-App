@@ -250,7 +250,8 @@
         node.textContent = "";
         return;
       }
-      var parsed = new Date(date);
+      var dateOnly = new RegExp("^([0-9]{4})-([0-9]{2})-([0-9]{2})$").exec(date);
+      var parsed = dateOnly ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3])) : new Date(date);
       node.textContent = "Date: " + (isNaN(parsed.getTime()) ? date : parsed.toLocaleDateString());
       node.hidden = false;
     }
